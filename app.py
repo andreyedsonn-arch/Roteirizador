@@ -58,6 +58,12 @@ def inicializar_cache():
             chave TEXT PRIMARY KEY, resultado TEXT NOT NULL,
             criado_em REAL NOT NULL, origem TEXT NOT NULL DEFAULT ''
         )""")
+        conn.execute("""CREATE TABLE IF NOT EXISTS enderecos_confirmados (
+            chave TEXT PRIMARY KEY, endereco TEXT NOT NULL, cidade TEXT NOT NULL,
+            latitude REAL NOT NULL, longitude REAL NOT NULL,
+            criado_em REAL NOT NULL, atualizado_em REAL NOT NULL,
+            origem TEXT NOT NULL DEFAULT 'manual'
+        )""")
 
 
 def _cache_ler(tabela, chave, ttl_segundos=15552000):
@@ -95,6 +101,49 @@ def _cache_gravar(tabela, chave, resultado, origem=""):
 
 def _chave_geocoder(motor, consulta):
     return normalizar(f"{motor}|{consulta}|br|v2")
+
+
+def _chave_endereco_confirmado(endereco, cidade):
+    """Chave estável para reutilizar coordenadas confirmadas pelo usuário."""
+    return normalizar(f"{endereco}|{cidade}|br|coords-confirmadas-v1")
+
+
+def buscar_endereco_confirmado(endereco, cidade):
+    """Retorna coordenadas salvas manualmente para endereço/cidade, se houver."""
+    chave = _chave_endereco_confirmado(endereco, cidade)
+    try:
+        with _CACHE_LOCK, sqlite3.connect(CACHE_DB, timeout=15) as conn:
+            row = conn.execute(
+                "SELECT latitude, longitude, endereco, atualizado_em FROM enderecos_confirmados WHERE chave=?",
+                (chave,),
+            ).fetchone()
+        if not row:
+            return None
+        lat, lon, nome, atualizado = row
+        return {"lat": float(lat), "lon": float(lon), "nome": nome,
+                "motor": "Coordenadas salvas", "atualizado_em": float(atualizado)}
+    except (sqlite3.Error, ValueError, TypeError):
+        return None
+
+
+def salvar_endereco_confirmado(endereco, cidade, lat, lon, origem="manual"):
+    """Persiste coordenadas verificadas para reutilização em execuções futuras."""
+    endereco = " ".join(str(endereco or "").split()).strip(" ,")
+    cidade = " ".join(str(cidade or "").split()).strip(" ,")
+    lat, lon = float(lat), float(lon)
+    if not endereco or not cidade or not (-90 <= lat <= 90) or not (-180 <= lon <= 180) or (lat == 0 and lon == 0):
+        raise ValueError("Endereço, cidade ou coordenadas inválidas.")
+    chave = _chave_endereco_confirmado(endereco, cidade)
+    agora = time.time()
+    with _CACHE_LOCK, sqlite3.connect(CACHE_DB, timeout=15) as conn:
+        conn.execute(
+            "INSERT INTO enderecos_confirmados "
+            "(chave, endereco, cidade, latitude, longitude, criado_em, atualizado_em, origem) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?) "
+            "ON CONFLICT(chave) DO UPDATE SET endereco=excluded.endereco, cidade=excluded.cidade, "
+            "latitude=excluded.latitude, longitude=excluded.longitude, atualizado_em=excluded.atualizado_em, origem=excluded.origem",
+            (chave, endereco, cidade, lat, lon, agora, agora, origem),
+        )
 
 
 def _get_nominatim(url, params, timeout=20, headers=None):
@@ -199,6 +248,11 @@ def geocodificar_photon(consulta):
 
 
 def geocodificar(endereco, cidade):
+    # Coordenadas confirmadas pelo usuário têm prioridade sobre os serviços públicos.
+    confirmado = buscar_endereco_confirmado(endereco, cidade)
+    if confirmado:
+        confirmado["consulta"] = f"{endereco}, {cidade}"
+        return confirmado, "OK (coordenadas confirmadas anteriormente)"
     chave = _chave_geocoder("endereco", f"{endereco}|{cidade}")
     cache = _cache_ler("geocodificacao", chave)
     if cache is not None:
@@ -1001,6 +1055,10 @@ if geo is not None:
                         st.session_state.geocodificados.at[idx, "status_geocodificacao"] = "Confirmado manualmente"
                         st.session_state.geocodificados.at[idx, "motor"] = "Manual/Google Maps"
                         st.session_state.geocodificados.at[idx, "resultado_encontrado"] = "Coordenadas confirmadas pelo usuário"
+                        try:
+                            salvar_endereco_confirmado(novo_endereco, geo.at[idx, "cidade"], lat, lon, origem="manual")
+                        except (sqlite3.Error, ValueError, TypeError) as exc:
+                            st.error(f"As coordenadas foram usadas nesta rota, mas não foi possível salvá-las para próximas execuções: {exc}")
                         st.rerun()
 
     geo = st.session_state.geocodificados
