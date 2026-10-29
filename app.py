@@ -161,8 +161,431 @@ def _get_nominatim(url, params, timeout=20, headers=None):
 inicializar_cache()
 
 st.set_page_config(page_title=APP_TITLE, page_icon="🚚", layout="wide")
+
+
+st.markdown("""
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+/* ============================================================
+   FLEET CONTROL PANEL — camada exclusivamente visual
+   Glassmorphism escuro, cantos suaves, bordas quase invisíveis
+   ============================================================ */
+:root {
+    --bg-deep: #060814;
+    --glass: rgba(18, 18, 24, 0.70);
+    --glass-soft: rgba(255, 255, 255, 0.035);
+    --hairline: rgba(255, 255, 255, 0.08);
+    --hairline-strong: rgba(255, 255, 255, 0.16);
+    --text: #F5F7FB;
+    --text-soft: #AEB4C4;
+    --text-faint: #7C8398;
+    --btn: rgba(34, 42, 66, 0.85);
+    --btn-hover: rgba(52, 64, 98, 0.95);
+    --accent: #FFE600;
+    --radius: 16px;
+    --radius-sm: 12px;
+}
+
+/* ---------- Tipografia ---------- */
+.stApp, .stApp p, .stApp li, .stApp label, .stApp input, .stApp textarea,
+.stApp button, .stApp h1, .stApp h2, .stApp h3, .stApp h4, .stApp h5, .stApp h6,
+.stApp [data-baseweb], [data-testid="stMarkdownContainer"],
+[data-testid="stMetricValue"], [data-testid="stMetricLabel"], [data-testid="stCaptionContainer"] {
+    font-family: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif !important;
+}
+.stApp [data-testid="stIconMaterial"], .stApp span.material-symbols-rounded, .stApp span.material-icons {
+    font-family: 'Material Symbols Rounded', 'Material Icons' !important;
+}
+h1, h2, h3, h4, h5, h6 { color: var(--text) !important; text-shadow: none !important; }
+h1 { font-size: 1.95rem !important; font-weight: 700 !important; letter-spacing: -0.025em !important; text-align: center !important; }
+[data-testid="stElementContainer"]:has(h1) + [data-testid="stElementContainer"] [data-testid="stCaptionContainer"],
+.element-container:has(h1) + .element-container [data-testid="stCaptionContainer"] { text-align: center !important; }
+h2, h3 { font-weight: 600 !important; letter-spacing: -0.012em !important; }
+h3 { font-size: 1.2rem !important; margin-top: 1.4rem !important; }
+p, li, [data-testid="stMarkdownContainer"] { color: var(--text); }
+[data-testid="stCaptionContainer"], .stCaption, small {
+    color: var(--text-faint) !important; font-weight: 400 !important; font-size: .83rem !important;
+}
+[data-testid="stWidgetLabel"] p, label p {
+    color: var(--text-soft) !important; font-weight: 500 !important; font-size: .84rem !important;
+}
+::selection { background: rgba(255, 230, 0, .22); }
+
+/* ---------- Fundo do app e lateral ---------- */
+html, body, .stApp, [data-testid="stAppViewContainer"], [data-testid="stMain"],
+[data-testid="stMainBlockContainer"] { background: var(--bg-deep) !important; color: var(--text) !important; }
+[data-testid="stAppViewContainer"] {
+    background-image:
+        radial-gradient(1100px 520px at 10% -10%, rgba(58, 76, 160, .20), transparent 60%),
+        radial-gradient(900px 480px at 100% 0%, rgba(255, 230, 0, .035), transparent 55%) !important;
+}
+[data-testid="stHeader"] { background: transparent !important; border: none !important; box-shadow: none !important; }
+[data-testid="stDecoration"] { display: none !important; }
+footer { visibility: hidden; }
+[data-testid="stSidebar"], [data-testid="stSidebar"] > div {
+    background: var(--bg-deep) !important;
+    border-right: 1px solid rgba(255, 255, 255, .06) !important;
+}
+[data-testid="stSidebar"] h2 {
+    font-size: .8rem !important; font-weight: 600 !important; letter-spacing: .14em !important;
+    text-transform: uppercase; color: var(--text-soft) !important;
+}
+[data-testid="stMainBlockContainer"] { padding-top: 2.4rem; padding-bottom: 3.5rem; }
+hr, [data-testid="stDivider"] { display: none !important; }
+
+/* ---------- Cards em vidro ---------- */
+[data-testid="stMetric"], [data-testid="stAlert"],
+[data-testid="stExpander"] details {
+    background: var(--glass) !important;
+    -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+    border: 1px solid var(--hairline) !important;
+    border-radius: var(--radius) !important;
+    box-shadow: 0 10px 32px rgba(0, 0, 0, .35) !important;
+}
+[data-testid="stExpander"] { border: none !important; background: transparent !important; box-shadow: none !important; }
+[data-testid="stExpander"] summary { border-radius: var(--radius) !important; font-weight: 500; color: var(--text) !important; }
+[data-testid="stExpander"] summary:hover { color: #FFFFFF !important; background: rgba(255, 255, 255, .03) !important; }
+
+/* ---------- Alertas (apenas tom de fundo, sem bordas coloridas) ---------- */
+[data-testid="stAlert"] > div { background: transparent !important; color: #E8ECF5 !important; }
+[data-testid="stAlert"]:has([data-testid="stAlertContentInfo"]),
+[data-testid="stAlert"][kind="info"] {
+    background: linear-gradient(rgba(96, 140, 255, .09), rgba(96, 140, 255, .09)), var(--glass) !important; }
+[data-testid="stAlert"]:has([data-testid="stAlertContentSuccess"]),
+[data-testid="stAlert"][kind="success"] {
+    background: linear-gradient(rgba(52, 211, 153, .08), rgba(52, 211, 153, .08)), var(--glass) !important; }
+[data-testid="stAlert"]:has([data-testid="stAlertContentWarning"]),
+[data-testid="stAlert"][kind="warning"] {
+    background: linear-gradient(rgba(255, 190, 60, .08), rgba(255, 190, 60, .08)), var(--glass) !important; }
+[data-testid="stAlert"]:has([data-testid="stAlertContentError"]),
+[data-testid="stAlert"][kind="error"] {
+    background: linear-gradient(rgba(255, 82, 82, .10), rgba(255, 82, 82, .10)), var(--glass) !important; }
+
+/* ---------- Caixa "Importante" (st.info): visual original preservado ---------- */
+[data-testid="stAlert"]:has([data-testid="stAlertContentInfo"]),
+[data-testid="stAlert"][kind="info"] {
+    background: #0B0C10 !important; border: 1px solid #25262C !important; border-radius: 3px !important;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, .018) !important;
+    -webkit-backdrop-filter: none !important; backdrop-filter: none !important; color: #FFFFFF !important;
+}
+[data-testid="stAlert"]:has([data-testid="stAlertContentInfo"]) [data-testid="stMarkdownContainer"] p,
+[data-testid="stAlert"][kind="info"] [data-testid="stMarkdownContainer"] p {
+    font-family: "Source Sans Pro", "Source Sans", sans-serif !important; color: #FFFFFF !important;
+}
+
+/* ---------- Métricas minimalistas ---------- */
+[data-testid="stMetric"] { padding: 1.15rem 1.35rem !important; }
+[data-testid="stMetricLabel"], [data-testid="stMetricLabel"] p {
+    color: var(--text-faint) !important; font-size: .72rem !important; font-weight: 500 !important;
+    text-transform: uppercase; letter-spacing: .09em;
+}
+[data-testid="stMetricValue"], [data-testid="stMetricValue"] div {
+    color: #FFFFFF !important; font-weight: 600 !important; letter-spacing: -.025em;
+    font-size: clamp(1.5rem, 2.3vw, 2.2rem) !important; line-height: 1.15 !important;
+}
+
+/* ---------- Tabelas ---------- */
+[data-testid="stDataFrame"], [data-testid="stTable"] {
+    background: var(--glass) !important;
+    border: 1px solid var(--hairline) !important;
+    border-radius: var(--radius) !important;
+    overflow: hidden;
+    box-shadow: 0 10px 32px rgba(0, 0, 0, .30);
+}
+[data-testid="stTable"] table { background: transparent !important; color: var(--text) !important; }
+
+/* ---------- Inputs ---------- */
+[data-baseweb="input"], [data-baseweb="textarea"], [data-baseweb="select"] > div {
+    background: var(--glass-soft) !important;
+    border: 1px solid var(--hairline) !important;
+    border-radius: var(--radius-sm) !important;
+    box-shadow: none !important;
+    transition: border-color .18s ease, box-shadow .18s ease;
+}
+[data-baseweb="base-input"] { background: transparent !important; border: none !important; }
+[data-baseweb="input"] input, [data-baseweb="textarea"] textarea, [data-baseweb="select"] input {
+    background: transparent !important; color: var(--text) !important; border: none !important;
+}
+[data-baseweb="input"]:focus-within, [data-baseweb="textarea"]:focus-within,
+[data-baseweb="select"]:focus-within > div {
+    border-color: rgba(255, 255, 255, .28) !important;
+    box-shadow: 0 0 0 3px rgba(120, 140, 255, .12) !important;
+}
+[data-testid="stNumberInput"] button { background: transparent !important; border: none !important; color: var(--text-soft) !important; }
+input, textarea { caret-color: var(--accent) !important; }
+[data-baseweb="popover"] > div {
+    background: rgba(14, 17, 32, .96) !important; border: 1px solid var(--hairline) !important;
+    border-radius: var(--radius-sm) !important; overflow: hidden;
+    -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+}
+[data-baseweb="menu"], [role="listbox"] { background: transparent !important; color: var(--text) !important; }
+[data-baseweb="option"]:hover, [role="option"]:hover { background: rgba(255, 255, 255, .06) !important; }
+
+/* ---------- Botões premium ---------- */
+.stButton > button, [data-testid="stDownloadButton"] > button,
+[data-testid="stFormSubmitButton"] > button {
+    background: var(--btn) !important; color: #E6EAF5 !important;
+    border: 1px solid var(--hairline) !important; border-radius: var(--radius-sm) !important;
+    font-weight: 500 !important; letter-spacing: .01em; padding: .55rem 1.15rem !important;
+    box-shadow: none !important;
+    transition: background .2s ease, box-shadow .2s ease, border-color .2s ease, color .2s ease !important;
+}
+.stButton > button p, [data-testid="stDownloadButton"] > button p,
+[data-testid="stFormSubmitButton"] > button p { color: inherit !important; font-weight: inherit !important; }
+.stButton > button:hover, [data-testid="stDownloadButton"] > button:hover,
+[data-testid="stFormSubmitButton"] > button:hover {
+    background: var(--btn-hover) !important; color: #FFFFFF !important;
+    border-color: var(--hairline-strong) !important;
+    box-shadow: 0 6px 22px rgba(90, 110, 200, .20) !important;
+}
+button[kind="primary"], [data-testid="stBaseButton-primary"] {
+    background: rgba(255, 230, 0, .10) !important; color: var(--accent) !important;
+    border: 1px solid rgba(255, 230, 0, .20) !important; font-weight: 600 !important;
+}
+button[kind="primary"]:hover, [data-testid="stBaseButton-primary"]:hover {
+    background: var(--accent) !important; color: #0A0C14 !important;
+    border-color: var(--accent) !important; box-shadow: 0 0 26px rgba(255, 230, 0, .25) !important;
+}
+.stButton > button:disabled, [data-testid="stDownloadButton"] > button:disabled {
+    opacity: .45 !important; background: var(--glass-soft) !important; color: var(--text-faint) !important;
+    border-color: var(--hairline) !important; box-shadow: none !important; cursor: not-allowed !important;
+}
+
+/* ---------- Upload ---------- */
+[data-testid="stFileUploader"] section, [data-testid="stFileUploaderDropzone"] {
+    background: var(--glass) !important; border: 1px dashed rgba(255, 255, 255, .14) !important;
+    border-radius: var(--radius) !important;
+}
+[data-testid="stFileUploader"] button { border-radius: var(--radius-sm) !important; }
+
+/* ---------- Progresso, spinner, links, código ---------- */
+[data-testid="stProgress"] > div > div { border-radius: 999px !important; background: rgba(255, 255, 255, .06) !important; }
+[data-testid="stProgress"] > div > div > div > div {
+    background: linear-gradient(90deg, rgba(255, 230, 0, .55), var(--accent)) !important;
+    border-radius: 999px !important; box-shadow: 0 0 12px rgba(255, 230, 0, .25);
+}
+[data-testid="stSpinner"] > div { border-top-color: var(--accent) !important; }
+a { color: #C9D2F0 !important; text-decoration-color: rgba(255, 255, 255, .25) !important; }
+a:hover { color: #FFFFFF !important; }
+code, pre {
+    background: var(--glass-soft) !important; color: #E7E9F0 !important;
+    border: 1px solid var(--hairline) !important; border-radius: var(--radius-sm) !important;
+}
+:focus-visible { outline-color: rgba(255, 255, 255, .35) !important; }
+
+/* ---------- Mapa (iframe do Leaflet) ---------- */
+[data-testid="stCustomComponentV1"], [data-testid="stIFrame"] { border-radius: var(--radius) !important; overflow: hidden; }
+.stApp iframe {
+    border-radius: var(--radius) !important; border: 1px solid var(--hairline) !important;
+    background: var(--bg-deep); box-shadow: 0 14px 44px rgba(0, 0, 0, .45);
+}
+
+/* ---------- Scrollbar discreta ---------- */
+* { scrollbar-width: thin; scrollbar-color: rgba(255, 255, 255, .16) transparent; }
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, .14); border-radius: 999px; }
+::-webkit-scrollbar-track { background: transparent; }
+
+/* ---------- Etapas do fluxo ---------- */
+.etapas { display: flex; align-items: center; justify-content: center; gap: .15rem; margin: 1.2rem 0 1.5rem; padding: .25rem; overflow-x: auto; }
+.etapa { display: flex; align-items: center; gap: .55rem; color: var(--text-faint); font-size: .78rem; font-weight: 500; white-space: nowrap; }
+.etapa .num {
+    width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; font-size: .7rem; font-weight: 600;
+    border: 1px solid var(--hairline-strong); background: var(--glass-soft);
+}
+.etapa.feita { color: var(--text-soft); }
+.etapa.feita .num { background: rgba(52, 211, 153, .14); border-color: rgba(52, 211, 153, .30); color: #5EE0A8; }
+.etapa.ativa { color: #FFFFFF; }
+.etapa.ativa .num { background: var(--accent); color: #0A0C14; border-color: var(--accent); box-shadow: 0 0 14px rgba(255, 230, 0, .35); }
+.etapa-linha { width: 28px; height: 1px; background: var(--hairline-strong); margin: 0 .5rem; flex: none; }
+
+/* ---------- Pílulas de status ---------- */
+.pilulas { display: flex; flex-wrap: wrap; gap: .5rem; margin: .7rem 0 .3rem; }
+.pilula {
+    display: inline-flex; align-items: center; gap: .5rem; padding: .28rem .8rem; border-radius: 999px;
+    font-size: .76rem; font-weight: 500; letter-spacing: .01em; color: var(--text-soft);
+    border: 1px solid var(--hairline); background: var(--glass-soft);
+}
+.pilula .ponto { width: 6px; height: 6px; border-radius: 50%; background: currentColor; box-shadow: 0 0 8px currentColor; }
+.pilula-ok { color: #5EE0A8; background: rgba(52, 211, 153, .08); }
+.pilula-aviso { color: #FFC857; background: rgba(255, 190, 60, .08); }
+.pilula-erro { color: #FF7A7A; background: rgba(255, 82, 82, .09); }
+
+/* ---------- Estado vazio ---------- */
+.estado-vazio {
+    margin: 1.4rem auto; max-width: 720px; padding: 2.2rem 2rem; text-align: center;
+    background: var(--glass); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+    border: 1px solid var(--hairline); border-radius: var(--radius); box-shadow: 0 10px 32px rgba(0, 0, 0, .35);
+}
+.estado-vazio .icone {
+    width: 52px; height: 52px; margin: 0 auto 1rem; border-radius: 16px; display: grid; place-items: center;
+    font-size: 1.4rem; color: var(--accent); background: rgba(255, 230, 0, .07); border: 1px solid rgba(255, 230, 0, .16);
+}
+.estado-vazio .titulo { font-size: 1.15rem; font-weight: 600; letter-spacing: -.01em; margin-bottom: .7rem; color: var(--text); }
+.estado-vazio p { color: var(--text-soft); font-size: .92rem; line-height: 1.65; margin: .35rem 0; }
+
+/* ---------- Sidebar: seções e serviços ---------- */
+.side-label { font-size: .68rem; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; color: var(--text-faint); margin: 1.1rem 0 .5rem; }
+.servico { display: flex; justify-content: space-between; gap: .8rem; font-size: .78rem; padding: .38rem 0; color: var(--text-soft); }
+.servico b { font-weight: 500; color: var(--text); text-align: right; }
+.servico b.on { color: #5EE0A8; }
+
+/* ---------- Spinner em pílula ---------- */
+[data-testid="stSpinner"] {
+    display: inline-flex; width: auto; padding: .35rem .95rem; border-radius: 999px;
+    background: var(--glass-soft); border: 1px solid var(--hairline);
+}
+
+/* ---------- Entrada suave (somente opacidade) ---------- */
+@keyframes entrada-suave { from { opacity: 0; } to { opacity: 1; } }
+[data-testid="stMetric"], [data-testid="stAlert"], [data-testid="stExpander"], .estado-vazio {
+    animation: entrada-suave .28s ease-out both;
+}
+@media (prefers-reduced-motion: reduce) {
+    [data-testid="stMetric"], [data-testid="stAlert"], [data-testid="stExpander"], .estado-vazio { animation: none !important; }
+}
+
+/* ---------- Responsividade ---------- */
+@media (max-width: 768px) {
+    [data-testid="stMainBlockContainer"] { padding-left: 1rem; padding-right: 1rem; }
+    [data-testid="stHorizontalBlock"] { flex-wrap: wrap !important; gap: .75rem !important; }
+    [data-testid="stColumn"], [data-testid="column"] { min-width: calc(50% - .75rem) !important; flex: 1 1 calc(50% - .75rem) !important; }
+}
+@media (max-width: 640px) {
+    h1 { font-size: 1.5rem !important; }
+    [data-testid="stColumn"], [data-testid="column"] { min-width: 100% !important; flex: 1 1 100% !important; }
+    .etapa:not(.ativa) .rotulo { display: none; }
+    .etapa-linha { width: 14px; margin: 0 .25rem; }
+    .estado-vazio { padding: 1.6rem 1.2rem; }
+}
+</style>
+""", unsafe_allow_html=True)
+
 st.title("🚚 Roteirizador de Entregas")
 st.caption("Busca gratuita de endereços, confirmação manual e roteirização por múltiplas rotas candidatas, otimização global e distâncias rodoviárias.")
+
+# ------------------------------------------------------------
+# Camada visual auxiliar: não participa da lógica de roteirização.
+# Todas as funções abaixo são defensivas; se algo falhar, o app segue sem elas.
+# ------------------------------------------------------------
+ETAPAS_FLUXO = ("Planilha", "Localização", "Confirmação", "Rota", "Resultado")
+
+ESPEC_LOCALIZADOS = {
+    "linha_planilha": ("Linha", "num", {"format": "%d", "width": "small"}),
+    "endereco": ("Endereço", "texto", {"width": "large"}),
+    "latitude": ("Latitude", "num", {"format": "%.6f"}),
+    "longitude": ("Longitude", "num", {"format": "%.6f"}),
+    "motor": ("Motor", "texto", {}),
+    "resultado_encontrado": ("Resultado encontrado", "texto", {"width": "large"}),
+}
+ESPEC_ROTA = {
+    "Parada": ("Parada", "num", {"format": "%d", "width": "small"}),
+    "Endereço": ("Endereço", "texto", {"width": "large"}),
+    "Linha original": ("Linha original", "num", {"format": "%d", "width": "small"}),
+    "Latitude": ("Latitude", "num", {"format": "%.6f"}),
+    "Longitude": ("Longitude", "num", {"format": "%.6f"}),
+    "Km desde parada anterior": ("Km", "num", {"format": "%.2f km"}),
+    "Minutos desde parada anterior": ("Minutos", "num", {"format": "%.1f min"}),
+    "Método de distância/tempo": ("Método", "texto", {}),
+    "Google Maps": ("Google Maps", "link", {"display_text": "Abrir"}),
+    "Status": ("Status", "texto", {"width": "small"}),
+}
+
+_slot_etapas = st.empty()
+
+
+def _etapa_atual(tem_arquivo):
+    """Etapa do fluxo derivada apenas do estado que já existe na sessão."""
+    if not tem_arquivo:
+        return 0
+    geo_estado = st.session_state.get("geocodificados")
+    if geo_estado is None:
+        return 1
+    if st.session_state.get("resultados_rota"):
+        return 4
+    try:
+        pendente = bool(geo_estado["latitude"].isna().any() or geo_estado["longitude"].isna().any())
+    except Exception:
+        pendente = False
+    return 2 if pendente else 3
+
+
+def _atualizar_etapas(tem_arquivo=True):
+    try:
+        ativa = _etapa_atual(tem_arquivo)
+        partes = []
+        for i, nome in enumerate(ETAPAS_FLUXO):
+            estado = "feita" if i < ativa else ("ativa" if i == ativa else "")
+            marca = "✓" if i < ativa else str(i + 1)
+            if i:
+                partes.append('<span class="etapa-linha"></span>')
+            partes.append(f'<div class="etapa {estado}"><span class="num">{marca}</span><span class="rotulo">{nome}</span></div>')
+        _slot_etapas.markdown('<div class="etapas">' + "".join(partes) + "</div>", unsafe_allow_html=True)
+    except Exception:
+        pass
+
+
+def _pilulas(itens):
+    """Pílulas de status. 'tom' aceito: ok, aviso, erro (qualquer outro vira neutro)."""
+    try:
+        corpo = "".join(
+            f'<span class="pilula pilula-{tom if tom in ("ok", "aviso", "erro") else "neutro"}">'
+            f'<span class="ponto"></span>{html.escape(str(texto))}</span>'
+            for texto, tom in itens
+        )
+        st.markdown(f'<div class="pilulas">{corpo}</div>', unsafe_allow_html=True)
+    except Exception:
+        pass
+
+
+def _painel_servicos():
+    try:
+        cache_ativo = CACHE_DB.exists()
+        itens = [
+            ("Cache local", "ativo" if cache_ativo else "inativo", cache_ativo),
+            ("Geocodificação", "Nominatim · Photon", False),
+            ("Roteamento", "OSRM público", False),
+        ]
+        corpo = "".join(
+            f'<div class="servico"><span>{nome}</span><b class="{"on" if on else ""}">{valor}</b></div>'
+            for nome, valor, on in itens
+        )
+        st.markdown('<div class="side-label">Serviços</div>' + corpo, unsafe_allow_html=True)
+    except Exception:
+        pass
+
+
+def _config_colunas(df, especificacao):
+    """Apenas apresentação das tabelas. Qualquer incompatibilidade de versão devolve None."""
+    try:
+        cfg = {}
+        for coluna, (rotulo, tipo, opcoes) in especificacao.items():
+            if coluna not in df.columns:
+                continue
+            if tipo == "num":
+                cfg[coluna] = st.column_config.NumberColumn(rotulo, **opcoes)
+            elif tipo == "link":
+                cfg[coluna] = st.column_config.LinkColumn(rotulo, **opcoes)
+            else:
+                cfg[coluna] = st.column_config.TextColumn(rotulo, **opcoes)
+        return cfg or None
+    except Exception:
+        return None
+
+
+def _mostrar_tabela(df, especificacao):
+    cfg = _config_colunas(df, especificacao)
+    if cfg:
+        try:
+            st.dataframe(df, use_container_width=True, hide_index=True, column_config=cfg)
+            return
+        except Exception:
+            pass
+    st.dataframe(df, use_container_width=True, hide_index=True)
+
+
+_atualizar_etapas(False)
 
 st.info(
     "Importante: os geocodificadores e o OSRM usados aqui são serviços públicos gratuitos, "
@@ -809,42 +1232,111 @@ def obter_geometria_rota(coordenadas, ordem):
     return geometria
 
 
+def _numero_ou_none(valor):
+    """Número finito para o pop-up do mapa; qualquer outra coisa vira None."""
+    try:
+        v = float(valor)
+        return v if math.isfinite(v) else None
+    except (TypeError, ValueError):
+        return None
+
+
 def exibir_mapa_rota(rota_df, origem, geometria=None):
     'Renderiza Leaflet sem interpolar texto do usuário em HTML executável.'
-    pontos = [{"lat": float(origem[0]), "lon": float(origem[1]), "numero": "O", "endereco": "Origem"}]
+    pontos = [{"lat": float(origem[0]), "lon": float(origem[1]), "numero": "O", "endereco": "Origem",
+               "km": None, "min": None}]
     for _, row in rota_df.iterrows():
         pontos.append({"lat": float(row["Latitude"]), "lon": float(row["Longitude"]),
-                       "numero": str(int(row["Parada"])), "endereco": str(row["Endereço"])})
+                       "numero": str(int(row["Parada"])), "endereco": str(row["Endereço"]),
+                       "km": _numero_ou_none(row.get("Km desde parada anterior")),
+                       "min": _numero_ou_none(row.get("Minutos desde parada anterior"))})
     linha = ([[float(c[1]), float(c[0])] for c in geometria] if geometria
              else [[p["lat"], p["lon"]] for p in pontos])
     # Escapa separadores de script mesmo após JSON.stringify no Python.
     pontos_json = json.dumps(pontos, ensure_ascii=False).replace("<", "\\u003c").replace(">", "\\u003e").replace("&", "\\u0026")
     linha_json = json.dumps(linha, ensure_ascii=False, allow_nan=False)
     html_mapa = f'''<!DOCTYPE html><html><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-<style>html,body,#map{{height:100%;width:100%;margin:0}} .stop-icon{{background:#1769aa;color:white;border:2px solid white;border-radius:50%;width:30px;height:30px;line-height:26px;text-align:center;font-weight:bold;box-shadow:0 1px 5px #555;font-size:13px}} .origin-icon{{background:#16803c;color:white;border:2px solid white;border-radius:50%;width:32px;height:32px;line-height:28px;text-align:center;font-weight:bold;box-shadow:0 1px 5px #555}}</style></head><body><div id="map"></div>
+<style>
+html,body{{height:100%;width:100%;margin:0;background:transparent;font-family:'Inter','Segoe UI',system-ui,sans-serif}}
+#map{{height:100%;width:100%;background:#060814;border-radius:16px;overflow:hidden}}
+.leaflet-tile-pane{{filter:invert(1) hue-rotate(180deg) brightness(.92) contrast(.88) saturate(.55)}}
+.leaflet-container{{background:#060814;color:#F5F7FB;font-family:inherit}}
+.stop-icon,.origin-icon{{position:relative;display:flex;align-items:center;justify-content:center;border-radius:50%;font-weight:700;letter-spacing:-.01em;border:none;box-sizing:border-box;transition:transform .18s ease}}
+.stop-icon{{width:26px;height:26px;background:#FFE600;color:#05060D;font-size:11px;box-shadow:0 0 0 4px rgba(255,230,0,.16),0 0 16px 2px rgba(255,230,0,.55)}}
+.origin-icon{{width:28px;height:28px;background:#FFFFFF;color:#05060D;font-size:12px;box-shadow:0 0 0 5px rgba(255,255,255,.14),0 0 18px 3px rgba(255,255,255,.55)}}
+.leaflet-marker-icon:hover .stop-icon{{transform:scale(1.25)}}
+.leaflet-marker-icon:hover .origin-icon{{transform:scale(1.15)}}
+.stop-icon::after,.origin-icon::after{{content:'';position:absolute;top:-7px;right:-7px;bottom:-7px;left:-7px;border-radius:50%;opacity:0;animation:gps-pulse 2.6s ease-out infinite}}
+.stop-icon::after{{border:1px solid rgba(255,230,0,.55)}}
+.origin-icon::after{{border:1px solid rgba(255,255,255,.55)}}
+@keyframes gps-pulse{{0%{{transform:scale(.7);opacity:.75}}100%{{transform:scale(1.55);opacity:0}}}}
+.rota-fluxo{{animation:rota-fluxo 1.6s linear infinite}}
+@keyframes rota-fluxo{{to{{stroke-dashoffset:-36}}}}
+@media (prefers-reduced-motion:reduce){{.rota-fluxo,.stop-icon::after,.origin-icon::after{{animation:none}}}}
+.leaflet-popup-content-wrapper{{background:rgba(10,12,24,.88);color:#F5F7FB;border:1px solid rgba(255,255,255,.08);border-radius:12px;box-shadow:0 12px 32px rgba(0,0,0,.5);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px)}}
+.leaflet-popup-tip{{background:rgba(10,12,24,.88);box-shadow:none}}
+.leaflet-popup-content{{margin:12px 16px;font-size:13px;line-height:1.45}}
+.leaflet-popup-content strong{{color:#FFFFFF;font-weight:600}}
+.leaflet-popup-content .trecho{{margin-top:4px;color:#AEB4C4;font-size:12px}}
+a.leaflet-popup-close-button{{color:#7C8398!important}}
+.leaflet-bar{{border:none!important;border-radius:12px!important;overflow:hidden;box-shadow:0 8px 24px rgba(0,0,0,.45)!important}}
+.leaflet-control-zoom a{{background:rgba(10,12,24,.85)!important;color:#F5F7FB!important;border-bottom:1px solid rgba(255,255,255,.08)!important}}
+.leaflet-control-zoom a:hover{{background:rgba(40,50,82,.95)!important}}
+.leaflet-control-attribution{{background:rgba(6,8,20,.65)!important;color:#7C8398!important;border-radius:10px 0 0 0;font-size:10px}}
+.leaflet-control-attribution a{{color:#AEB4C4!important}}
+.legenda{{background:rgba(10,12,24,.82);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:8px 14px;color:#AEB4C4;font-size:11.5px;line-height:1.9;box-shadow:0 8px 24px rgba(0,0,0,.45);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px)}}
+.legenda .dot{{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:8px;vertical-align:middle}}
+.legenda .dot-origem{{background:#FFFFFF;box-shadow:0 0 8px rgba(255,255,255,.7)}}
+.legenda .dot-parada{{background:#FFE600;box-shadow:0 0 8px rgba(255,230,0,.7)}}
+</style></head><body><div id="map"></div>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script><script>
 const pontos = {pontos_json}; const linha = {linha_json};
-const map = L.map('map');
-L.tileLayer('https://{{s}}.tile.openstreetmap.org/{{z}}/{{x}}/{{y}}.png', {{maxZoom:19, attribution:'&copy; OpenStreetMap contributors'}}).addTo(map);
+const map = L.map('map', {{zoomControl:true}});
+L.tileLayer('https://tile.openstreetmap.org/{{z}}/{{x}}/{{y}}.png', {{maxZoom:19, attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a>'}}).addTo(map);
 const bounds=[];
 pontos.forEach(p => {{
  const origem = p.numero === 'O';
+ const tam = origem ? 28 : 26;
  const div = document.createElement('div');
  div.className = origem ? 'origin-icon' : 'stop-icon';
  div.textContent = p.numero;
- const icon = L.divIcon({{className:'',html:div.outerHTML,iconSize:[32,32],iconAnchor:[16,16]}});
+ const icon = L.divIcon({{className:'',html:div.outerHTML,iconSize:[tam,tam],iconAnchor:[tam/2,tam/2]}});
  const popup = document.createElement('div');
  const titulo = document.createElement('strong');
  titulo.textContent = origem ? 'ORIGEM' : 'Parada ' + p.numero;
  const endereco = document.createElement('div');
  endereco.textContent = p.endereco;
  popup.appendChild(titulo); popup.appendChild(endereco);
- L.marker([p.lat,p.lon],{{icon}}).addTo(map).bindPopup(popup);
+ if (!origem) {{
+  const partes = [];
+  if (typeof p.km === 'number') partes.push(p.km.toFixed(1).replace('.', ',') + ' km');
+  if (typeof p.min === 'number') partes.push(Math.round(p.min) + ' min');
+  if (partes.length) {{
+   const trecho = document.createElement('div');
+   trecho.className = 'trecho';
+   trecho.textContent = partes.join(' · ') + ' desde a parada anterior';
+   popup.appendChild(trecho);
+  }}
+ }}
+ L.marker([p.lat,p.lon],{{icon, zIndexOffset: origem ? 1000 : 0, riseOnHover:true}}).addTo(map).bindPopup(popup);
  bounds.push([p.lat,p.lon]);
 }});
-if (Array.isArray(linha) && linha.length > 1) L.polyline(linha,{{color:'#1769aa',weight:5,opacity:0.8}}).addTo(map);
-if(bounds.length) map.fitBounds(bounds,{{padding:[25,25]}});
+if (Array.isArray(linha) && linha.length > 1) {{
+ L.polyline(linha,{{color:'#FFE600',weight:12,opacity:0.10,lineCap:'round',lineJoin:'round',interactive:false}}).addTo(map);
+ L.polyline(linha,{{color:'#FFE600',weight:3.5,opacity:0.60,lineCap:'round',lineJoin:'round',interactive:false}}).addTo(map);
+ if (linha.length <= 4000) L.polyline(linha,{{color:'#FFF6A8',weight:3.5,opacity:0.95,dashArray:'3 15',lineCap:'round',lineJoin:'round',className:'rota-fluxo',interactive:false}}).addTo(map);
+}}
+const legenda = L.control({{position:'bottomleft'}});
+legenda.onAdd = function() {{
+ const d = L.DomUtil.create('div','legenda');
+ d.innerHTML = '<div><span class="dot dot-origem"></span>Origem</div><div><span class="dot dot-parada"></span>Paradas (' + (pontos.length - 1) + ')</div>';
+ L.DomEvent.disableClickPropagation(d);
+ return d;
+}};
+legenda.addTo(map);
+if(bounds.length) map.fitBounds(bounds,{{padding:[30,30]}});
 </script></body></html>'''
     components.html(html_mapa, height=560, scrolling=False)
 
@@ -860,16 +1352,26 @@ def calcular_trecho(a, b):
 
 with st.sidebar:
     st.header("Configuração")
+    st.markdown('<div class="side-label">Área e origem</div>', unsafe_allow_html=True)
     cidade_padrao = st.text_input("Cidade/área padrão para buscar endereços", "Campina Grande, PB, Brasil")
     origem_texto = st.text_input("Endereço de origem", ORIGEM_PADRAO)
     st.caption("A origem é fixa. O sistema compara várias sequências completas e escolhe a de menor distância rodoviária estimada, tentando evitar retornos entre extremos da cidade.")
+    _painel_servicos()
 
 arquivo = st.file_uploader("Carregue a planilha CSV ou Excel", type=["csv", "xlsx", "xls"])
 if arquivo is None:
-    st.markdown("### Formato esperado")
-    st.write("Sua planilha precisa ter uma coluna com os endereços. O nome padrão é `endereco_entrega`, mas você poderá selecionar outra coluna.")
-    st.write("As linhas não são limitadas a 10. Endereços repetidos continuam sendo entregas separadas.")
+    st.markdown(
+        '<div class="estado-vazio">'
+        '<div class="icone">↑</div>'
+        '<div class="titulo">Formato esperado</div>'
+        '<p>Sua planilha precisa ter uma coluna com os endereços. O nome padrão é <code>endereco_entrega</code>, mas você poderá selecionar outra coluna.</p>'
+        '<p>As linhas não são limitadas a 10. Endereços repetidos continuam sendo entregas separadas.</p>'
+        '</div>',
+        unsafe_allow_html=True,
+    )
     st.stop()
+
+_atualizar_etapas(True)
 
 try:
     df_original = ler_planilha(arquivo)
@@ -919,7 +1421,7 @@ if "geocodificados" not in st.session_state:
 if "resultados_rota" not in st.session_state:
     st.session_state.resultados_rota = None
 
-if st.button("🔎 Buscar todos os endereços", type="primary", use_container_width=True):
+if st.button("Buscar todos os endereços", type="primary", use_container_width=True):
     trabalho = df_original.copy()
     trabalho["_linha_planilha"] = range(2, len(trabalho) + 2)
     resultados = []
@@ -943,7 +1445,7 @@ if st.button("🔎 Buscar todos os endereços", type="primary", use_container_wi
             cidade = cidade_padrao if coluna_cidade == "(usar cidade padrão)" else str(linha[coluna_cidade]).strip()
         if not cidade:
             cidade = cidade_padrao
-        status.write(f"Buscando endereço {pos+1} de {total}: {endereco}")
+        status.write(f"**{pos+1}/{total}** · {endereco}")
         resultado, situacao = geocodificar(endereco, cidade)
         resultados.append({
             "linha_planilha": int(linha["_linha_planilha"]),
@@ -962,6 +1464,7 @@ if st.button("🔎 Buscar todos os endereços", type="primary", use_container_wi
     st.session_state.resultados_rota = None
     status.success("Busca concluída. Confira os endereços pendentes abaixo.")
 
+_atualizar_etapas(True)
 geo = st.session_state.geocodificados
 if geo is not None:
     ok = geo["latitude"].notna() & geo["longitude"].notna()
@@ -969,9 +1472,11 @@ if geo is not None:
     c1.metric("Entregas na planilha", len(geo))
     c2.metric("Localizadas", int(ok.sum()))
     c3.metric("Pendentes de confirmação", int((~ok).sum()))
+    _pilulas([("Todas localizadas" if int((~ok).sum()) == 0 else f"{int((~ok).sum())} pendente(s)",
+               "ok" if int((~ok).sum()) == 0 else "aviso")])
 
     st.subheader("Endereços localizados")
-    st.dataframe(geo.loc[ok, ["linha_planilha", "endereco", "latitude", "longitude", "motor", "resultado_encontrado"]], use_container_width=True, hide_index=True)
+    _mostrar_tabela(geo.loc[ok, ["linha_planilha", "endereco", "latitude", "longitude", "motor", "resultado_encontrado"]], ESPEC_LOCALIZADOS)
 
     pendentes = geo.index[~ok].tolist()
     if pendentes:
@@ -980,10 +1485,10 @@ if geo is not None:
         st.caption("Abra o Maps, confirme o ponto exato e copie latitude/longitude do local. Também é possível pesquisar um endereço corrigido abaixo.")
         for idx in pendentes:
             with st.expander(f"Linha {int(geo.at[idx, 'linha_planilha'])} — {geo.at[idx, 'endereco']}"):
-                st.markdown(f"[🔎 Conferir no Google Maps]({abrir_google_maps(geo.at[idx, 'endereco'], geo.at[idx, 'cidade'])})")
+                st.markdown(f"[Conferir no Google Maps]({abrir_google_maps(geo.at[idx, 'endereco'], geo.at[idx, 'cidade'])})")
                 chave_sugestao = f"sugestoes_endereco_{idx}"
-                if st.button("🔍 Procurar endereços semelhantes", key=f"buscar_semelhantes_{idx}"):
-                    with st.spinner("Pesquisando alternativas nos serviços gratuitos..."):
+                if st.button("Procurar endereços semelhantes", key=f"buscar_semelhantes_{idx}"):
+                    with st.spinner("Buscando alternativas..."):
                         sugestoes, erros_busca = buscar_enderecos_semelhantes(
                             geo.at[idx, "endereco"], geo.at[idx, "cidade"]
                         )
@@ -1015,8 +1520,8 @@ if geo is not None:
                     candidato = sugestoes[escolha]
                     st.caption(f"Latitude: {candidato['lat']:.7f} | Longitude: {candidato['lon']:.7f}")
                     url_ponto = f"https://www.google.com/maps/search/?api=1&query={candidato['lat']},{candidato['lon']}"
-                    st.markdown(f"[📍 Conferir este ponto no Google Maps]({url_ponto})")
-                    if st.button("✅ Confirmar este endereço", key=f"confirmar_sugestao_{idx}"):
+                    st.markdown(f"[Conferir este ponto no Google Maps]({url_ponto})")
+                    if st.button("Confirmar este endereço", key=f"confirmar_sugestao_{idx}"):
                         st.session_state.geocodificados.at[idx, "latitude"] = candidato["lat"]
                         st.session_state.geocodificados.at[idx, "longitude"] = candidato["lon"]
                         st.session_state.geocodificados.at[idx, "endereco"] = candidato["nome"]
@@ -1067,8 +1572,8 @@ if geo is not None:
     st.write("A rota começa pela origem. O sistema compara vizinho mais próximo com várias sequências randomizadas, melhora cada uma por movimentos locais e escolhe a de menor distância estimada. Assim, uma região extrema próxima das primeiras entregas pode ser atendida antes de avançar para o extremo mais distante, evitando retornos desnecessários. É uma heurística e não garante o ótimo matemático.")
     if not tudo_localizado:
         st.error("Rota completa bloqueada: ainda existem entregas sem coordenadas. Confirme cada uma acima para incluir todas.")
-    if st.button("🧭 Calcular rota completa", disabled=not tudo_localizado, use_container_width=True):
-        with st.spinner("Localizando a origem e calculando a sequência..."):
+    if st.button("Calcular rota completa", disabled=not tudo_localizado, use_container_width=True):
+        with st.spinner("Calculando a rota..."):
             origem_resultado, origem_status = geocodificar(origem_texto, cidade_padrao)
             if not origem_resultado:
                 st.error(f"Não consegui localizar a origem automaticamente ({origem_status}). Corrija o endereço de origem ou escolha coordenadas válidas.")
@@ -1179,6 +1684,7 @@ if geo is not None:
                 "metodo_ordem": "múltiplas sequências completas + melhoria local + menor distância rodoviária total",
             }
 
+    _atualizar_etapas(True)
     resultado_rota = st.session_state.resultados_rota
     if resultado_rota:
         rota_df = resultado_rota["rota"]
@@ -1192,19 +1698,26 @@ if geo is not None:
         m1.metric("Entregas na rota", len(rota_df))
         m2.metric("Distância rodoviária calculada", f"{resultado_rota['total_km']:.2f} km")
         m3.metric("Tempo rodoviário calculado", f"{resultado_rota['total_min']:.0f} min")
+        _pilulas([
+            ("Rota completa" if len(rota_df) == resultado_rota["total"] else "Contagem divergente",
+             "ok" if len(rota_df) == resultado_rota["total"] else "erro"),
+            ("Distâncias via OSRM" if not resultado_rota["falhas_trecho"]
+             else f"{resultado_rota['falhas_trecho']} trecho(s) aproximado(s)",
+             "ok" if not resultado_rota["falhas_trecho"] else "aviso"),
+        ])
         if resultado_rota["falhas_trecho"]:
             st.warning(f"{resultado_rota['falhas_trecho']} trecho(s) usaram fallback Haversine e/ou tempo estimado. Consulte a coluna 'Método de distância/tempo'; os totais continuam preenchidos, mas são aproximados nesses trechos.")
-        st.subheader("🗺️ Mapa da rota sequenciada")
-        st.caption("O marcador verde O representa a origem; os marcadores azuis numerados mostram a ordem das entregas. A linha mostra o trajeto pelas ruas quando o OSRM fornece a geometria.")
+        st.subheader("Mapa da rota sequenciada")
+        st.caption("O ponto branco O representa a origem; os pontos amarelos numerados mostram a ordem das entregas. A linha mostra o trajeto pelas ruas quando o OSRM fornece a geometria.")
         if resultado_rota.get("erro_mapa"):
             st.warning("Não foi possível obter a linha pelas ruas neste momento. O mapa exibirá uma ligação aproximada entre as paradas. " + str(resultado_rota["erro_mapa"]))
         exibir_mapa_rota(rota_df, resultado_rota["origem_coordenadas"], resultado_rota.get("geometria_mapa"))
-        st.dataframe(rota_df, use_container_width=True, hide_index=True)
+        _mostrar_tabela(rota_df, ESPEC_ROTA)
         csv = rota_df.to_csv(index=False).encode("utf-8-sig")
-        st.download_button("⬇️ Baixar rota em CSV", data=csv, file_name="rota_completa.csv", mime="text/csv")
+        st.download_button("Baixar rota em CSV", data=csv, file_name="rota_completa.csv", mime="text/csv")
         buffer = io.BytesIO()
         with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
             rota_df.to_excel(writer, index=False, sheet_name="Rota")
             geo.to_excel(writer, index=False, sheet_name="Geocodificacao")
-        st.download_button("⬇️ Baixar relatório Excel", data=buffer.getvalue(), file_name="relatorio_roteirizador.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+        st.download_button("Baixar relatório Excel", data=buffer.getvalue(), file_name="relatorio_roteirizador.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
         st.caption("O botão Google Maps de cada endereço abre a busca desse destino. Trechos sem resposta OSRM usam Haversine × fator rodoviário e tempo estimado de 25 km/h; esses valores são aproximações, não distâncias reais de condução.")
