@@ -1,59 +1,97 @@
-# 📍 Roteirizador de Entregas
+# Orbiway
+### Sistema Inteligente de Roteirização de Entregas
 
-Um sistema em Python desenvolvido para automatizar, otimizar e roteirizar entregas por múltiplas rotas candidatas, contando com verificação e conferência manual de endereços.
+O **Orbiway** é um sistema de roteirização logística desenvolvido em Python e Streamlit, voltado à organização e otimização de entregas urbanas.
+
+A plataforma transforma listas de endereços em rotas otimizadas, utilizando serviços de geolocalização, cálculo de trajetos rodoviários e conferência manual de endereços.
+
+Seu objetivo é tornar o planejamento das entregas mais eficiente, reduzir atividades manuais e oferecer maior controle sobre a operação logística.
 
 ---
 
 ## 🚀 Sobre o Projeto
 
-O **Roteirizador de Entregas** é uma ferramenta focada em logística urbana que transforma uma lista de endereços em rotas otimizadas. O sistema realiza a busca gratuita de coordenadas, valida os endereços e calcula as distâncias rodoviárias para organizar a sequência de entregas de forma eficiente.
+O Orbiway foi desenvolvido para apoiar o processo de planejamento e execução de entregas.
+
+O sistema realiza a busca de coordenadas geográficas, valida os endereços informados e calcula distâncias rodoviárias para organizar a sequência de entregas de maneira eficiente.
+
+A ferramenta combina automação e conferência manual, permitindo que o operador acompanhe e valide as informações utilizadas na roteirização.
 
 ## 🛠️ Tecnologias Utilizadas
 
-O projeto foi construído utilizando as seguintes tecnologias e bibliotecas:
+O projeto utiliza as seguintes tecnologias, bibliotecas e serviços:
 
-*   **Python** — Linguagem base do projeto.
-*   **Streamlit** — Framework utilizado para a construção da interface web interativa.
-*   **Pandas** — Manipulação e estruturação dos dados de entrada e saída.
-*   **OpenStreetMap (OSRM & Photon)** — APIs utilizadas para geocodificação (busca de endereços) e cálculo de rotas rodoviárias reais.
+- **Python** — Linguagem principal do projeto.
+- **Streamlit** — Framework utilizado na construção da interface web interativa.
+- **Pandas** — Manipulação e estruturação dos dados de entrada e saída.
+- **SQLite** — Armazenamento local e cache de informações.
+- **OpenStreetMap** — Base de dados geográficos.
+- **Nominatim** — Serviço de geocodificação para busca de endereços e obtenção de coordenadas.
+- **Photon** — Serviço complementar de busca e geocodificação de endereços.
+- **OSRM** — Serviço utilizado no cálculo de rotas e distâncias rodoviárias.
+---
+
+## 🗺️ Funcionalidades Principais
+
+- **Busca de Endereços:** localização de endereços e obtenção de coordenadas geográficas.
+- **Otimização de Rotas:** organização das entregas buscando reduzir a distância e o tempo total de deslocamento.
+- **Conferência Manual:** possibilidade de validar e ajustar os pontos de entrega.
+- **Integração com Planilhas:** importação de arquivos para facilitar a carga dos dados de entrega.
+- **Cálculo de Distâncias:** utilização de trajetos rodoviários para apoiar o planejamento das rotas.
 
 ---
 
-## 📦 Como Instalar e Rodar o Projeto
+## 📦 Como Instalar e Executar
 
-Para executar este projeto localmente na sua máquina, siga os passos abaixo:
+Para executar o projeto localmente, siga os passos abaixo.
 
 ### Pré-requisitos
-Certifique-se de ter o **Python 3.x** instalado no seu sistema.
+
+- Python 3.x instalado na máquina.
+- Git instalado para clonar o repositório.
 
 ### 1. Clonar o repositório
+
 ```bash
 git clone https://github.com/andreyedsonn-arch/Roteirizador.git
 cd Roteirizador
 ```
 
 ### 2. Instalar as dependências
-Instale todas as bibliotecas necessárias listadas no arquivo `requirements.txt`:
+
+Instale as bibliotecas necessárias utilizando o arquivo `requirements.txt`:
+
 ```bash
 pip install -r requirements.txt
 ```
 
 ### 3. Executar a aplicação
 
-Para abrir a interface do sistema no seu navegador, você tem duas opções:
+Existem duas maneiras de iniciar o sistema:
 
-*   **Opção 1 (Mais fácil):** Basta ir até a pasta do projeto e dar dois cliques no arquivo **`Iniciar_Roteirizador.bat`**.
-*   **Opção 2 (Via terminal):** Se preferir rodar manualmente pelo terminal, execute o comando:
-    ```bash
-    streamlit run app.py
-    ```
+**Opção 1 — Inicialização pelo Windows**
 
+Execute o arquivo `Iniciar_Roteirizador.bat`, localizado na pasta do projeto.
+
+**Opção 2 — Pelo terminal**
+
+Execute o comando:
+
+```bash
+streamlit run app.py
+```
+
+Após a inicialização, a aplicação poderá ser acessada pelo navegador.
 
 ---
 
-## 🗺️ Funcionalidades Principais
+## 📈 Evolução do Projeto
 
-*   **Busca de Endereços:** Integração com serviços de mapas para localização exata de coordenadas.
-*   **Otimização Global:** Algoritmo para redução de distância e tempo total de rodagem.
-*   **Conferência Manual:** Interface amigável para o operador validar e ajustar os pontos de entrega.
-*   **Suporte a Arquivos:** Integração com planilhas para carga rápida de dados de rotas.
+O Orbiway está em evolução contínua, com melhorias voltadas à eficiência operacional, experiência de utilização e confiabilidade do processo de roteirização.
+
+As atualizações são orientadas pelas necessidades da operação logística e pela busca de soluções práticas para os desafios do planejamento de entregas.
+
+---
+
+**Orbiway**  
+*Tecnologia aplicada à eficiência logística.*

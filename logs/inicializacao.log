@@ -1,0 +1,114 @@
+
+--- Orbiway | app.py | porta 53010 ---
+2026-10-31 01:28:39.049 Uvicorn server started on 127.0.0.1:53010
+
+  You can now view your Streamlit app in your browser.
+
+  URL: http://127.0.0.1:53010
+
+2026-10-31 01:29:09.229 Please replace `use_container_width` with `width`.
+
+`use_container_width` will be removed after 2025-12-31.
+
+For `use_container_width=True`, use `width='stretch'`. For `use_container_width=False`, use `width='content'`.
+2026-10-31 01:29:25.571 Please replace `use_container_width` with `width`.
+
+`use_container_width` will be removed after 2025-12-31.
+
+For `use_container_width=True`, use `width='stretch'`. For `use_container_width=False`, use `width='content'`.
+2026-10-31 01:29:30.617 Please replace `use_container_width` with `width`.
+
+`use_container_width` will be removed after 2025-12-31.
+
+For `use_container_width=True`, use `width='stretch'`. For `use_container_width=False`, use `width='content'`.
+2026-10-31 01:29:32.904 Please replace `use_container_width` with `width`.
+
+`use_container_width` will be removed after 2025-12-31.
+
+For `use_container_width=True`, use `width='stretch'`. For `use_container_width=False`, use `width='content'`.
+2026-10-31 01:29:33.244 Please replace `use_container_width` with `width`.
+
+`use_container_width` will be removed after 2025-12-31.
+
+For `use_container_width=True`, use `width='stretch'`. For `use_container_width=False`, use `width='content'`.
+2026-10-31 01:29:40.295 Please replace `use_container_width` with `width`.
+
+`use_container_width` will be removed after 2025-12-31.
+
+For `use_container_width=True`, use `width='stretch'`. For `use_container_width=False`, use `width='content'`.
+2026-10-31 01:29:42.378 Please replace `use_container_width` with `width`.
+
+`use_container_width` will be removed after 2025-12-31.
+
+For `use_container_width=True`, use `width='stretch'`. For `use_container_width=False`, use `width='content'`.
+2026-10-31 01:29:42.713 Please replace `use_container_width` with `width`.
+
+`use_container_width` will be removed after 2025-12-31.
+
+For `use_container_width=True`, use `width='stretch'`. For `use_container_width=False`, use `width='content'`.
+2026-10-31 01:29:45.870 Please replace `use_container_width` with `width`.
+
+`use_container_width` will be removed after 2025-12-31.
+
+For `use_container_width=True`, use `width='stretch'`. For `use_container_width=False`, use `width='content'`.
+2026-10-31 01:29:45.947 Please replace `use_container_width` with `width`.
+
+`use_container_width` will be removed after 2025-12-31.
+
+For `use_container_width=True`, use `width='stretch'`. For `use_container_width=False`, use `width='content'`.
+2026-10-31 01:29:48.985 Please replace `st.components.v1.html` with `st.iframe`.
+
+`st.components.v1.html` will be removed after 2026-06-01.
+2026-10-31 01:29:48.985 Please replace `use_container_width` with `width`.
+
+`use_container_width` will be removed after 2025-12-31.
+
+For `use_container_width=True`, use `width='stretch'`. For `use_container_width=False`, use `width='content'`.
+
+--- Orbiway | app.py | porta 53070 ---
+2026-10-31 01:32:56.614 Uvicorn server started on 127.0.0.1:53070
+
+  You can now view your Streamlit app in your browser.
+
+  URL: http://127.0.0.1:53070
+
+
+--- Orbiway | app.py | porta 53171 ---
+2026-10-31 01:52:26.500 Uvicorn server started on 127.0.0.1:53171
+
+  You can now view your Streamlit app in your browser.
+
+  URL: http://127.0.0.1:53171
+
+
+--- Orbiway | app.py | porta 53218 ---
+2026-10-31 01:55:15.697 Uvicorn server started on 127.0.0.1:53218
+
+  You can now view your Streamlit app in your browser.
+
+  URL: http://127.0.0.1:53218
+
+
+--- Orbiway | app.py | porta 53301 ---
+2026-10-31 02:04:30.544 Uvicorn server started on 127.0.0.1:53301
+
+  You can now view your Streamlit app in your browser.
+
+  URL: http://127.0.0.1:53301
+
+
+--- Orbiway | app.py | porta 53333 ---
+2026-10-31 02:04:45.953 Uvicorn server started on 127.0.0.1:53333
+
+  You can now view your Streamlit app in your browser.
+
+  URL: http://127.0.0.1:53333
+
+Exception in callback _ProactorBasePipeTransport._call_connection_lost(None)
+handle: <Handle _ProactorBasePipeTransport._call_connection_lost(None)>
+Traceback (most recent call last):
+  File "C:\Users\Andrey\AppData\Local\Programs\Python\Python312\Lib\asyncio\events.py", line 88, in _run
+    self._context.run(self._callback, *self._args)
+  File "C:\Users\Andrey\AppData\Local\Programs\Python\Python312\Lib\asyncio\proactor_events.py", line 165, in _call_connection_lost
+    self._sock.shutdown(socket.SHUT_RDWR)
+ConnectionResetError: [WinError 10054] Foi forçado o cancelamento de uma conexão existente pelo host remoto

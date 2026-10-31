@@ -21,7 +21,7 @@ import streamlit.components.v1 as components
 # ============================================================
 # ROTEIRIZADOR DE ENTREGAS - gratuito, com conferência manual
 # ============================================================
-APP_TITLE = "Roteirizador de Entregas"
+APP_TITLE = "Orbiway | Roteirização Inteligente de Entregas"
 ORIGEM_PADRAO = "Rua Perseu Dantas, 191, Campina Grande, Paraíba, Brasil"
 NOMINATIM_URL = "https://nominatim.openstreetmap.org/search"
 PHOTON_URL = "https://photon.komoot.io/api/"
@@ -176,7 +176,7 @@ def _get_nominatim(url, params, timeout=20, headers=None):
 
 inicializar_cache()
 
-st.set_page_config(page_title=APP_TITLE, page_icon="🚚", layout="wide")
+st.set_page_config(page_title=APP_TITLE, page_icon=str(Path(__file__).resolve().parent / "assets" / "orbiway_icon.png"), layout="wide")
 
 
 st.markdown("""
