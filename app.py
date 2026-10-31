@@ -4,6 +4,7 @@ import json
 import math
 import os
 import random
+import re
 import time
 import unicodedata
 import sqlite3
@@ -24,6 +25,17 @@ APP_TITLE = "Roteirizador de Entregas"
 ORIGEM_PADRAO = "Rua Perseu Dantas, 191, Campina Grande, Paraíba, Brasil"
 NOMINATIM_URL = "https://nominatim.openstreetmap.org/search"
 PHOTON_URL = "https://photon.komoot.io/api/"
+ORS_GEOCODE_URL = "https://api.openrouteservice.org/geocode/search"
+# Chave do OpenRouteService (opcional): variável de ambiente ORS_API_KEY ou st.secrets["ORS_API_KEY"].
+# Sem a chave, o motor é ignorado e o app funciona exatamente como antes.
+ORS_API_KEY = os.getenv("ORS_API_KEY", "")
+if not ORS_API_KEY:
+    try:
+        ORS_API_KEY = str(st.secrets.get("ORS_API_KEY", "") or "")
+    except Exception:
+        ORS_API_KEY = ""
+ORS_FOCO_LAT, ORS_FOCO_LON = -7.2306, -35.8811  # Campina Grande: prioriza resultados próximos
+ORS_CAMADAS_VALIDAS = {"address", "street", "venue"}  # evita aceitar centro de bairro/cidade
 OSRM_TABLE_URL = "https://router.project-osrm.org/table/v1/driving/"
 OSRM_ROUTE_URL = "https://router.project-osrm.org/route/v1/driving/"
 # Identificação da aplicação para os serviços públicos de geocodificação e roteamento.
@@ -58,6 +70,10 @@ def inicializar_cache():
             chave TEXT PRIMARY KEY, resultado TEXT NOT NULL,
             criado_em REAL NOT NULL, origem TEXT NOT NULL DEFAULT ''
         )""")
+        # Remove resultados do OpenRouteService gravados antes da validação de cidade/estado.
+        # Os novos resultados usam outro rótulo ("OpenRouteService v3") e não são afetados.
+        conn.execute("DELETE FROM geocodificacao WHERE origem IN ('OpenRouteService', 'OpenRouteService v2')")
+        conn.execute("DELETE FROM respostas_geocoder WHERE origem IN ('OpenRouteService', 'OpenRouteService v2')")
         conn.execute("""CREATE TABLE IF NOT EXISTS enderecos_confirmados (
             chave TEXT PRIMARY KEY, endereco TEXT NOT NULL, cidade TEXT NOT NULL,
             latitude REAL NOT NULL, longitude REAL NOT NULL,
@@ -427,8 +443,8 @@ code, pre {
 
 /* ---------- Sidebar: seções e serviços ---------- */
 .side-label { font-size: .68rem; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; color: var(--text-faint); margin: 1.1rem 0 .5rem; }
-.servico { display: flex; justify-content: space-between; gap: .8rem; font-size: .78rem; padding: .38rem 0; color: var(--text-soft); }
-.servico b { font-weight: 500; color: var(--text); text-align: right; }
+.servico { display: flex; flex-wrap: wrap; justify-content: space-between; gap: .1rem .8rem; font-size: .78rem; padding: .38rem 0; color: var(--text-soft); }
+.servico b { font-weight: 500; color: var(--text); text-align: right; white-space: nowrap; margin-left: auto; }
 .servico b.on { color: #5EE0A8; }
 
 /* ---------- Spinner em pílula ---------- */
@@ -544,7 +560,7 @@ def _painel_servicos():
         cache_ativo = CACHE_DB.exists()
         itens = [
             ("Cache local", "ativo" if cache_ativo else "inativo", cache_ativo),
-            ("Geocodificação", "Nominatim · Photon", False),
+            ("Geocodificação", "Nominatim · Photon" + (" · ORS" if ORS_API_KEY else ""), False),
             ("Roteamento", "OSRM público", False),
         ]
         corpo = "".join(
@@ -600,17 +616,85 @@ def normalizar(texto):
     texto = "".join(c for c in texto if not unicodedata.combining(c))
     return " ".join(texto.upper().split())
 
+# ---------- Limpeza e variações de endereço (valem para Nominatim, Photon e ORS) ----------
+_ABREVIACOES = {
+    "AV": "AVENIDA", "TV": "TRAVESSA", "TRAV": "TRAVESSA", "PROF": "PROFESSOR", "PROFA": "PROFESSORA",
+    "DR": "DOUTOR", "DRA": "DOUTORA", "ENG": "ENGENHEIRO", "STA": "SANTA", "STO": "SANTO",
+    "CEL": "CORONEL", "PCA": "PRACA", "PRC": "PRACA", "CJ": "CONJUNTO", "JD": "JARDIM", "VL": "VILA",
+}
+_PARTICULAS = {"DE", "DA", "DO", "DAS", "DOS"}
+_GRAFIAS = (("LUIS", "LUIZ"), ("EUSEBIO", "EUZEBIO"), ("ELISEU", "ELIZEU"), ("ISIDORO", "IZIDORO"))
+MAX_CONSULTAS_AUTO = 6
+
+
+def _limpar_endereco(texto):
+    """Tira o código IBGE ('2504009|'), o 'N'/'Nº' antes do número e expande abreviações comuns."""
+    texto = re.sub(r"\b\d{6,7}\s*\|\s*", "", str(texto or ""))
+    texto = re.sub(r"(?i)\b(?:N[º°o]?|NUM|NUMERO|NÚMERO)\.?\s*(?=\d)", "", texto)
+    texto = re.sub(r"(?i)^\s*R\.?\s+(?=\S)", "RUA ", texto)
+    texto = re.sub(
+        r"(?i)\b(" + "|".join(_ABREVIACOES) + r")\b\.?",
+        lambda m: _ABREVIACOES[m.group(1).upper()], texto,
+    )
+    return " ".join(texto.split()).strip(" ,")
+
+
+def _variantes_endereco(texto):
+    """Devolve o endereço limpo e variações: grafia (Luis/Luiz), sem 'de/da/do' e sem o bairro."""
+    texto = " ".join(str(texto or "").split())
+    if not texto:
+        return []
+    norm = normalizar(texto)
+
+    def troca_grafia(t):
+        for a, b in _GRAFIAS:
+            if re.search(rf"\b{a}\b", t):
+                return re.sub(rf"\b{a}\b", b, t)
+            if re.search(rf"\b{b}\b", t):
+                return re.sub(rf"\b{b}\b", a, t)
+        return t
+
+    def sem_particulas(t):
+        partes = t.split(",")
+        partes[0] = " ".join(w for w in partes[0].split() if w not in _PARTICULAS)
+        return ",".join(partes)
+
+    variantes = [texto]
+    graf = troca_grafia(norm)
+    variantes.append(graf)
+    variantes.append(sem_particulas(norm))
+    variantes.append(sem_particulas(graf))
+    partes = [x.strip() for x in texto.split(",") if x.strip()]
+    # rua, [número], bairro, município, UF, país -> tenta sem o bairro (nunca remove o número).
+    if len(partes) >= 5 and not re.search(r"\d", partes[1]):
+        variantes.append(", ".join([partes[0]] + partes[2:]))
+    elif len(partes) >= 6 and re.search(r"\d", partes[1]) and not re.search(r"\d", partes[2]):
+        variantes.append(", ".join(partes[:2] + partes[3:]))
+    saida, vistos = [], set()
+    for v in variantes:
+        v = " ".join(v.split()).strip(" ,")
+        chave = normalizar(v)
+        if v and chave not in vistos:
+            vistos.add(chave)
+            saida.append(v)
+    return saida
+
+
 def montar_consultas(endereco, cidade):
     endereco = str(endereco or "").strip()
     cidade = str(cidade or "").strip()
     if not endereco:
         return []
-    consultas = [
-        endereco,
-        f"{endereco}, {cidade}" if cidade else endereco,
-        f"{endereco}, Campina Grande, PB, Brasil",
-        f"{endereco}, Paraíba, Brasil",
-    ]
+    cidade_limpa = _limpar_consulta_ors(cidade) or "Campina Grande, PB, Brasil"
+    nome_cidade, _ = _cidade_uf_alvo(cidade)
+    limpas = []
+    for variante in _variantes_endereco(_limpar_endereco(endereco)):
+        if nome_cidade and nome_cidade in normalizar(variante):
+            limpas.append(variante)
+        else:
+            limpas.append(f"{variante}, {cidade_limpa}")
+    # Consulta original (como era antes) fica como última tentativa, por compatibilidade.
+    consultas = limpas[:MAX_CONSULTAS_AUTO - 1] + [endereco]
     saida, vistos = [], set()
     for q in consultas:
         q = " ".join(q.split()).strip(" ,")
@@ -619,6 +703,7 @@ def montar_consultas(endereco, cidade):
             vistos.add(chave)
             saida.append(q)
     return saida
+
 
 def geocodificar_nominatim(consulta):
     chave = _chave_geocoder("nominatim", consulta)
@@ -670,22 +755,133 @@ def geocodificar_photon(consulta):
     return resultado
 
 
+def _limpar_consulta_ors(texto):
+    """Remove códigos IBGE tipo '2504009|' que confundem o ORS."""
+    return " ".join(re.sub(r"\b\d{6,7}\s*\|\s*", "", str(texto or "")).split())
+
+
+def _cidade_uf_alvo(cidade):
+    texto = _limpar_consulta_ors(cidade)
+    partes = [p.strip() for p in texto.split(",") if p.strip()]
+    nome = normalizar(partes[0]) if partes else ""
+    uf = next((normalizar(p) for p in partes[1:] if len(p) == 2), "")
+    return nome, uf
+
+
+_TIPOS_VIA = {"RUA", "AVENIDA", "TRAVESSA", "ALAMEDA", "PRACA", "RODOVIA", "ESTRADA", "BECO",
+              "VILA", "JARDIM", "CONJUNTO", "LOTEAMENTO", "LOT", "VIELA", "LADEIRA", "PARQUE"}
+_TITULOS = {"PROFESSOR", "PROFESSORA", "DOUTOR", "DOUTORA", "ENGENHEIRO", "CORONEL", "GENERAL", "MAJOR",
+            "CAPITAO", "TENENTE", "SARGENTO", "PADRE", "FREI", "PASTOR", "VEREADOR", "VEREADORA",
+            "DEPUTADO", "DEPUTADA", "PREFEITO", "GOVERNADOR", "PRESIDENTE", "SENADOR", "DOM", "DONA",
+            "MONSENHOR", "BISPO", "COMENDADOR", "DESEMBARGADOR", "MINISTRO", "JUIZ", "MESTRE"}
+
+
+def _fonetica(token):
+    """Aproxima grafias parecidas: Luis/Luiz, Nely/Neli, Souza/Sousa, Phelipe/Felipe."""
+    t = normalizar(token)
+    for a, b in (("PH", "F"), ("Y", "I"), ("W", "V"), ("Z", "S"), ("K", "C"), ("H", "")):
+        t = t.replace(a, b)
+    return re.sub(r"(.)\1+", r"\1", t)
+
+
+def _tokens_nome(texto, filtrar=True):
+    saida = []
+    for t in re.split(r"[^A-Z0-9]+", normalizar(texto)):
+        if not t or any(c.isdigit() for c in t) or len(t) < 2:
+            continue
+        if filtrar and (t in _PARTICULAS or t in _TIPOS_VIA or t in _TITULOS):
+            continue
+        saida.append(_fonetica(t))
+    return saida
+
+
+def _rua_confere(rua_ref, nome_resultado, limite=0.8):
+    """True se o nome da rua pedido aparece (com tolerância de grafia) no resultado devolvido."""
+    ref = _tokens_nome(rua_ref)
+    if not ref:
+        return True  # ex.: "Rua A", "Rua 10": não há nome para comparar
+    candidatos = _tokens_nome(nome_resultado, filtrar=False)
+    achados = 0
+    for t in ref:
+        if any(t == c or difflib.SequenceMatcher(None, t, c).ratio() >= 0.85 for c in candidatos):
+            achados += 1
+    return achados / len(ref) >= limite
+
+
+def _ors_resultado_confiavel(props, cidade, rua_ref=""):
+    """Aceita só endereço/rua dentro da cidade e do estado pedidos (sem 'palpite' de outra cidade)."""
+    if props.get("layer") not in ORS_CAMADAS_VALIDAS:
+        return False
+    if props.get("match_type") == "fallback":
+        return False
+    nome, uf = _cidade_uf_alvo(cidade)
+    regiao = normalizar(props.get("region_a") or "")
+    if uf and regiao and regiao != uf:
+        return False
+    if nome:
+        locais = [normalizar(props.get(k) or "") for k in ("locality", "localadmin", "county")]
+        if not any(nome in local for local in locais if local):
+            return False
+    if rua_ref and not _rua_confere(rua_ref, props.get("label") or props.get("name") or ""):
+        return False
+    return True
+
+
+def geocodificar_ors(consulta, cidade="", rua_ref=""):
+    """OpenRouteService (Pelias): só é usado se houver chave configurada."""
+    if not ORS_API_KEY:
+        return None
+    chave = _chave_geocoder("ors3", f"{consulta}|{cidade}|{rua_ref}")
+    em_cache = _cache_ler("respostas_geocoder", chave)
+    if isinstance(em_cache, dict) and em_cache.get("_cache_envelope") is True:
+        return em_cache.get("resultado")
+    resp = HTTP.get(
+        ORS_GEOCODE_URL,
+        params={
+            "text": _limpar_consulta_ors(consulta), "size": 10, "boundary.country": "BR",
+            "focus.point.lat": ORS_FOCO_LAT, "focus.point.lon": ORS_FOCO_LON,
+        },
+        headers={"Authorization": ORS_API_KEY},
+        timeout=(5, 20),
+    )
+    resp.raise_for_status()  # 429 (cota esgotada) vira erro e NÃO é gravado no cache
+    resultado = None
+    for feature in resp.json().get("features", []):
+        props = feature.get("properties", {})
+        coords = feature.get("geometry", {}).get("coordinates", [])
+        if len(coords) >= 2 and _ors_resultado_confiavel(props, cidade, rua_ref):
+            resultado = {"lat": float(coords[1]), "lon": float(coords[0]),
+                         "nome": props.get("label") or consulta, "motor": "OpenRouteService"}
+            break
+    _cache_gravar(
+        "respostas_geocoder", chave,
+        {"_cache_envelope": True, "resultado": resultado}, "OpenRouteService v3",
+    )
+    return resultado
+
+
 def geocodificar(endereco, cidade):
     # Coordenadas confirmadas pelo usuário têm prioridade sobre os serviços públicos.
     confirmado = buscar_endereco_confirmado(endereco, cidade)
     if confirmado:
         confirmado["consulta"] = f"{endereco}, {cidade}"
         return confirmado, "OK (coordenadas confirmadas anteriormente)"
-    chave = _chave_geocoder("endereco", f"{endereco}|{cidade}")
+    chave = _chave_geocoder("endereco2", f"{endereco}|{cidade}")
     cache = _cache_ler("geocodificacao", chave)
     if cache is not None:
         return cache.get("resultado"), cache.get("situacao", "OK (cache SQLite)")
     consultas = montar_consultas(endereco, cidade)
     erros_conexao = []
+    # Nome da rua pedido: resultados com rua diferente são descartados (ficam pendentes p/ confirmação).
+    rua_ref = _limpar_endereco(endereco).split(",")[0]
+    descartados = []
     for consulta in consultas:
         for motor, funcao in (("Nominatim", geocodificar_nominatim), ("Photon", geocodificar_photon)):
             try:
                 resultado = funcao(consulta)
+                if resultado and not _rua_confere(rua_ref, resultado.get("nome", "")):
+                    descartados.append(f"{motor}: {resultado.get('nome', '')}")
+                    resultado = None
                 if resultado:
                     resultado["consulta"] = consulta
                     _cache_gravar("geocodificacao", chave, {"resultado": resultado, "situacao": "OK"}, motor)
@@ -694,7 +890,20 @@ def geocodificar(endereco, cidade):
                 erros_conexao.append(f"{motor}: {exc}")
             except (ValueError, KeyError, TypeError) as exc:
                 erros_conexao.append(f"{motor}: {exc}")
+    # OpenRouteService só entra depois que Nominatim e Photon falharam (poupa a cota diária).
+    if ORS_API_KEY:
+        for consulta in consultas[:2]:
+            try:
+                resultado = geocodificar_ors(consulta, cidade, rua_ref)
+                if resultado:
+                    resultado["consulta"] = consulta
+                    _cache_gravar("geocodificacao", chave, {"resultado": resultado, "situacao": "OK"}, "OpenRouteService v3")
+                    return resultado, "OK"
+            except (requests.RequestException, ValueError, KeyError, TypeError) as exc:
+                erros_conexao.append(f"OpenRouteService: {exc}")
     situacao = "Falha de conexão/serviço" if erros_conexao and len(erros_conexao) >= len(consultas) else "Não encontrado automaticamente"
+    if descartados and situacao == "Não encontrado automaticamente":
+        situacao += " (resultado descartado: rua diferente)"
     # Cache negativo curto evita tempestade de requisições em repetição imediata.
     return None, situacao
 
@@ -702,8 +911,8 @@ def _consultas_ampliadas(endereco, cidade):
     """Gera consultas mais flexíveis e evita repetir a cidade no texto."""
     import re
 
-    endereco = " ".join(str(endereco or "").strip().split())
-    cidade = " ".join(str(cidade or "").strip().split()) or "Campina Grande, PB, Brasil"
+    endereco = _limpar_endereco(" ".join(str(endereco or "").strip().split()))
+    cidade = _limpar_consulta_ors(" ".join(str(cidade or "").strip().split())) or "Campina Grande, PB, Brasil"
     if not endereco:
         return []
 
@@ -718,7 +927,7 @@ def _consultas_ampliadas(endereco, cidade):
     if not base_endereco:
         base_endereco = endereco
 
-    base = [base_endereco]
+    base = _variantes_endereco(base_endereco)[:3]
     # Tenta remover o número do imóvel, preservando o nome da rua.
     sem_numero = re.sub(r"[,\s]+\d+[A-Za-z]?\s*$", "", base_endereco).strip(" ,-")
     if sem_numero and normalizar(sem_numero) != normalizar(base_endereco):
@@ -747,7 +956,7 @@ def _consultas_ampliadas(endereco, cidade):
             if q and chave not in vistos:
                 vistos.add(chave)
                 consultas.append(q)
-    return consultas[:8]
+    return consultas[:10]
 
 
 def buscar_enderecos_semelhantes(endereco, cidade):
@@ -833,6 +1042,47 @@ def buscar_enderecos_semelhantes(endereco, cidade):
                     }
         except (requests.RequestException, ValueError, KeyError, TypeError) as exc:
             erros.append(f"Photon [{consulta}]: {type(exc).__name__}: {exc}")
+
+        # OpenRouteService: opcional, limitado às 4 primeiras consultas para poupar a cota diária.
+        if ORS_API_KEY and consulta in consultas[:4]:
+            try:
+                chave_ors = _chave_geocoder("ors-candidatos10-v2", consulta)
+                features = _cache_ler("respostas_geocoder", chave_ors, ttl_segundos=86400)
+                if features is None:
+                    resp = HTTP.get(
+                        ORS_GEOCODE_URL,
+                        params={
+                            "text": _limpar_consulta_ors(consulta), "size": 10, "boundary.country": "BR",
+                            "focus.point.lat": ORS_FOCO_LAT, "focus.point.lon": ORS_FOCO_LON,
+                        },
+                        headers={"Authorization": ORS_API_KEY},
+                        timeout=(5, 20),
+                    )
+                    requisicoes += 1
+                    resp.raise_for_status()
+                    features = resp.json().get("features", [])
+                    _cache_gravar("respostas_geocoder", chave_ors, features, "OpenRouteService candidatos")
+                if features:
+                    consultas_com_resultados += 1
+                for item in features:
+                    coords = item.get("geometry", {}).get("coordinates", [])
+                    props = item.get("properties", {})
+                    if len(coords) < 2:
+                        continue
+                    _, uf_alvo = _cidade_uf_alvo(cidade)
+                    regiao = normalizar(props.get("region_a") or "")
+                    if uf_alvo and regiao and regiao != uf_alvo:
+                        continue  # ignora sugestões de outro estado
+                    nome = str(props.get("label") or "").strip() or consulta
+                    lat, lon = float(coords[1]), float(coords[0])
+                    chave = (round(lat, 6), round(lon, 6))
+                    if chave not in candidatos:
+                        candidatos[chave] = {
+                            "nome": nome, "lat": lat, "lon": lon,
+                            "motor": "OpenRouteService", "consulta": consulta,
+                        }
+            except (requests.RequestException, ValueError, KeyError, TypeError) as exc:
+                erros.append(f"OpenRouteService [{consulta}]: {type(exc).__name__}: {exc}")
         time.sleep(0.25)
 
     alvo = normalizar(f"{endereco} {cidade}")
@@ -1349,6 +1599,215 @@ def calcular_trecho(a, b):
         rota = data["routes"][0]
         return rota.get("distance"), rota.get("duration"), "OSRM"
     return None, None, "Distância rodoviária indisponível"
+
+# ============================================================
+# IMPORTAÇÃO DE RELATÓRIO PROTHEUS (XML SpreadsheetML)
+# Bloco independente: não usa nem altera dados da roteirização.
+# Cada linha do XML é um pedido e é sempre preservada individualmente
+# (sem agrupar por motorista e sem remover duplicidades).
+# ============================================================
+PROTHEUS_COLUNAS_FILTRO = ("ITEM", "NOME_MOTORISTA", "DESC_OCORRENCIA", "DT_OCORRENCIA")
+PROTHEUS_ITEM_VALIDO = "01"
+PROTHEUS_TODOS_MOTORISTAS = "(Todos os motoristas)"
+PROTHEUS_TODAS_OCORRENCIAS = "(Todas as ocorrências)"
+
+def _protheus_texto_celula(celula):
+    # Texto do <Data> da célula, ignorando o namespace XML.
+    for filho in celula:
+        if filho.tag.rsplit("}", 1)[-1] == "Data":
+            return "".join(filho.itertext()).strip()
+    return ""
+
+def _protheus_linha_para_lista(linha):
+    # Converte <Row> em lista de textos, respeitando ss:Index (células puladas).
+    valores = []
+    for celula in linha:
+        if celula.tag.rsplit("}", 1)[-1] != "Cell":
+            continue
+        indice = None
+        for chave, valor in celula.attrib.items():
+            if chave.rsplit("}", 1)[-1] == "Index":
+                try:
+                    indice = int(valor)
+                except ValueError:
+                    indice = None
+        if indice is not None and indice - 1 > len(valores):
+            valores.extend([""] * (indice - 1 - len(valores)))
+        valores.append(_protheus_texto_celula(celula))
+    return valores
+
+def ler_xml_protheus(arquivo):
+    """Lê o Excel XML (SpreadsheetML) do Protheus em streaming e devolve um DataFrame (tudo texto).
+
+    Mantém uma linha do DataFrame para cada linha de dados do XML.
+    """
+    import xml.etree.ElementTree as ET
+
+    if hasattr(arquivo, "seek"):
+        arquivo.seek(0)
+    cabecalho = None
+    registros = []
+    encontrou_workbook = False
+    try:
+        for _, elem in ET.iterparse(arquivo, events=("end",)):
+            nome_tag = elem.tag.rsplit("}", 1)[-1]
+            if nome_tag == "Workbook":
+                encontrou_workbook = True
+                continue
+            if nome_tag != "Row":
+                continue
+            valores = _protheus_linha_para_lista(elem)
+            elem.clear()  # libera memória a cada linha processada
+            if cabecalho is None:
+                nomes = [v.strip() for v in valores]
+                if all(c in nomes for c in PROTHEUS_COLUNAS_FILTRO):
+                    cabecalho = []
+                    for nome in nomes:
+                        base, n = nome or "COLUNA", 2
+                        while base in cabecalho:
+                            base = f"{nome or 'COLUNA'}_{n}"
+                            n += 1
+                        cabecalho.append(base)
+                continue
+            if not any(v for v in valores):
+                continue  # linha totalmente vazia (rodapé do relatório)
+            if len(valores) < len(cabecalho):
+                valores = valores + [""] * (len(cabecalho) - len(valores))
+            registros.append(valores[:len(cabecalho)])
+    except ET.ParseError as exc:
+        raise ValueError(f"XML inválido ou corrompido: {exc}") from exc
+    if not encontrou_workbook:
+        raise ValueError("O arquivo não é um Excel XML (SpreadsheetML) válido: elemento Workbook não encontrado.")
+    if cabecalho is None:
+        raise ValueError(
+            "Não encontrei a linha de cabeçalhos esperada. Colunas necessárias: "
+            + ", ".join(PROTHEUS_COLUNAS_FILTRO) + "."
+        )
+    if not registros:
+        raise ValueError("O relatório não contém registros abaixo do cabeçalho.")
+    return pd.DataFrame(registros, columns=cabecalho, dtype=str)
+
+def _protheus_converter_datas(serie):
+    # ISO 8601 (inclusive com 'Z') -> datetime sem fuso, mantendo exatamente o horário escrito no XML.
+    # Valores vazios ou inválidos viram NaT, sem interromper o aplicativo.
+    texto = serie.fillna("").astype(str).str.strip().replace("", pd.NA)
+    try:
+        convertida = pd.to_datetime(texto, errors="coerce", utc=True, format="mixed")
+    except (TypeError, ValueError):
+        convertida = pd.to_datetime(texto, errors="coerce", utc=True)
+    return convertida.dt.tz_localize(None)
+
+def preparar_base_protheus(df):
+    """Aplica o filtro permanente ITEM = 01 e cria as colunas auxiliares (prefixo _) usadas pelos filtros."""
+    base = df[df["ITEM"].astype(str).str.strip() == PROTHEUS_ITEM_VALIDO].copy()
+    base = base.reset_index(drop=True)  # sem remoção de duplicidades
+    # Chave de comparação sem diferença de maiúsculas/minúsculas e espaços (ex.: "Francisco" e "FRANCISCO").
+    # Afeta só a lista e o filtro; a coluna original continua intacta na tabela.
+    base["_motorista"] = base["NOME_MOTORISTA"].fillna("").astype(str).map(lambda v: " ".join(v.upper().split()))
+    base["_ocorrencia"] = base["DESC_OCORRENCIA"].fillna("").astype(str).map(lambda v: " ".join(v.upper().split()))
+    base["_data"] = _protheus_converter_datas(base["DT_OCORRENCIA"])
+    return base
+
+def opcoes_protheus(serie):
+    # Opções de seleção: sem vazios e sem repetidos (somente na lista, nunca na tabela).
+    return sorted({v for v in serie if v})
+
+def filtrar_base_protheus(base, motorista=None, ocorrencias=None, data_inicio=None, data_fim=None):
+    """Aplica os filtros de forma combinada. Devolve todas as linhas que atendem aos critérios."""
+    mascara = pd.Series(True, index=base.index)
+    if motorista and motorista != PROTHEUS_TODOS_MOTORISTAS:
+        mascara &= base["_motorista"] == motorista
+    if ocorrencias and PROTHEUS_TODAS_OCORRENCIAS not in ocorrencias:
+        mascara &= base["_ocorrencia"].isin(list(ocorrencias))
+    if data_inicio is not None:
+        mascara &= base["_data"].notna() & (base["_data"].dt.normalize() >= pd.Timestamp(data_inicio))
+    if data_fim is not None:
+        mascara &= base["_data"].notna() & (base["_data"].dt.normalize() <= pd.Timestamp(data_fim))
+    return base[mascara]
+
+def tabela_protheus_exibicao(filtrado):
+    # Colunas principais primeiro; todas as demais do relatório são mantidas.
+    exibicao = filtrado.drop(columns=[c for c in filtrado.columns if c.startswith("_")]).copy()
+    datas = filtrado["_data"].dt.strftime("%d/%m/%Y %H:%M")
+    exibicao["DT_OCORRENCIA"] = datas.where(filtrado["_data"].notna(), exibicao["DT_OCORRENCIA"])
+    ordem = list(PROTHEUS_COLUNAS_FILTRO) + [c for c in exibicao.columns if c not in PROTHEUS_COLUNAS_FILTRO]
+    return exibicao[ordem]
+
+def secao_importacao_protheus():
+    with st.expander("Importação de Relatório Protheus", expanded=False):
+        try:
+            xml = st.file_uploader("Relatório XML do Protheus", key="protheus_xml")  # sem filtro de extensão: o Protheus pode gerar nomes como "arquivo.xml_2026..."; o conteúdo é validado na leitura
+            if xml is None:
+                st.caption("Envie o XML exportado pelo Protheus. Somente ITEM = 01 é considerado; cada linha do relatório é um pedido e todas são mantidas.")
+                return
+            assinatura = (getattr(xml, "file_id", None), xml.name, xml.size)
+            if st.session_state.get("protheus_assinatura") != assinatura:
+                with st.spinner("Processando relatório Protheus..."):
+                    bruto = ler_xml_protheus(xml)
+                    st.session_state["protheus_total"] = len(bruto)
+                    st.session_state["protheus_base"] = preparar_base_protheus(bruto)
+                    st.session_state["protheus_assinatura"] = assinatura
+            total = st.session_state["protheus_total"]
+            base = st.session_state["protheus_base"]
+            st.success("Importação concluída.")
+            c1, c2 = st.columns(2)
+            c1.metric("Registros importados", f"{total:,}".replace(",", "."))
+            c2.metric("Registros com ITEM = 01", f"{len(base):,}".replace(",", "."))
+            if base.empty:
+                st.warning("Nenhum registro com ITEM = 01 neste relatório.")
+                return
+
+            f1, f2 = st.columns(2)
+            with f1:
+                motorista = st.selectbox("Motorista (NOME_MOTORISTA)", [PROTHEUS_TODOS_MOTORISTAS] + opcoes_protheus(base["_motorista"]), key="protheus_motorista")
+            with f2:
+                ocorrencias = st.multiselect(
+                    "Descrição da ocorrência (DESC_OCORRENCIA)",
+                    [PROTHEUS_TODAS_OCORRENCIAS] + opcoes_protheus(base["_ocorrencia"]),
+                    default=[PROTHEUS_TODAS_OCORRENCIAS],
+                    key="protheus_ocorrencias",
+                )
+
+            data_inicio = data_fim = None
+            datas_validas = base["_data"].dropna()
+            if datas_validas.empty:
+                st.caption("Nenhuma data de ocorrência válida no relatório; filtro de período indisponível.")
+            else:
+                minimo, maximo = datas_validas.min().date(), datas_validas.max().date()
+                periodo = st.date_input("Período da ocorrência (DT_OCORRENCIA)", value=(minimo, maximo), min_value=minimo, max_value=maximo, format="DD/MM/YYYY", key="protheus_periodo")
+                if isinstance(periodo, (list, tuple)):
+                    selecionadas = list(periodo)
+                else:
+                    selecionadas = [periodo]
+                if len(selecionadas) >= 1:
+                    inicio = selecionadas[0]
+                    fim = selecionadas[1] if len(selecionadas) > 1 else maximo
+                    # Só filtra por data se o período foi restringido; assim, no padrão, registros sem data continuam visíveis.
+                    if inicio != minimo or fim != maximo:
+                        data_inicio, data_fim = inicio, fim
+                sem_data = int(base["_data"].isna().sum())
+                if sem_data:
+                    st.caption(f"{sem_data} registro(s) sem data válida (aparecem enquanto o período não for restringido).")
+
+            filtrado = filtrar_base_protheus(base, motorista, ocorrencias, data_inicio, data_fim)
+            exibicao = tabela_protheus_exibicao(filtrado)
+            st.markdown(f"**{len(exibicao)} registro(s)** atendem aos filtros (todas as linhas de pedido são exibidas, sem agrupamento).")
+            st.dataframe(exibicao, use_container_width=True, hide_index=True)
+            st.download_button(
+                "Baixar resultado filtrado (CSV)",
+                exibicao.to_csv(index=False, sep=";").encode("utf-8-sig"),
+                file_name="protheus_filtrado.csv",
+                mime="text/csv",
+                key="protheus_download",
+            )
+        except Exception as exc:
+            st.error(f"Não foi possível processar o relatório Protheus: {exc}")
+            st.session_state.pop("protheus_assinatura", None)
+
+try:
+    secao_importacao_protheus()
+except Exception as _exc_protheus:
+    st.error(f"Falha na seção de importação Protheus (o restante do aplicativo não foi afetado): {_exc_protheus}")
 
 with st.sidebar:
     st.header("Configuração")
