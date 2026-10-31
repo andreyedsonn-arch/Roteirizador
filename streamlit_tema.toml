@@ -1,5 +1,3 @@
-# Copie APENAS esta seção [theme] para o seu .streamlit/config.toml.
-# Se já existir um config.toml em produção, não substitua o arquivo: mescle só este bloco.
 [theme]
 base = "dark"
 primaryColor = "#FFE600"
