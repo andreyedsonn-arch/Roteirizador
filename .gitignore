@@ -1,0 +1,61 @@
+# ==================================================
+# ORBIWAY - Arquivos ignorados pelo Git
+# ==================================================
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Ambientes virtuais
+.venv/
+venv/
+env/
+ENV/
+
+# Variáveis de ambiente e credenciais
+.env
+.env.*
+!.env.example
+
+# Segredos do Streamlit
+.streamlit/secrets.toml
+
+# Banco de dados e cache operacional
+data/roteirizador_cache.sqlite3
+data/roteirizador_cache.sqlite3-wal
+data/roteirizador_cache.sqlite3-shm
+
+# Outros arquivos temporários de SQLite
+*.sqlite3-journal
+
+# Logs de execução
+logs/
+*.log
+
+# Arquivos temporários
+*.tmp
+*.temp
+~$*
+
+# Sistema operacional Windows
+Thumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Editores e IDEs
+.vscode/
+.idea/
+
+# Testes e cobertura (se utilizados)
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Arquivos temporários de ferramentas
+.streamlit/cache/
